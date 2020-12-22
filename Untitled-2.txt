@@ -1,0 +1,1 @@
+python generate.py --outdir=A:/Textures_512 --trunc=0.8 --seeds=0-256 --network=A:/training-runs/00000-crops_512-auto1/network-snapshot-000400.pkl

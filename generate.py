@@ -26,8 +26,6 @@ os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import moviepy.editor
 from opensimplex import OpenSimplex
 
-import fft_functions as my_fft
-
 import warnings # mostly numpy warnings for me
 warnings.filterwarnings('ignore', category=FutureWarning)
 warnings.filterwarnings('ignore', category=DeprecationWarning)
@@ -241,31 +239,61 @@ def generate_latent_images(zs, truncation_psi, outdir, save_npy,prefix,vidname,f
     subprocess.call(cmd, shell=True)
 
 
-def generate_latent_images_fft(zs, truncation_psi, outdir, save_npy,prefix,vidname,framerate):
-    Gs_kwargs = {
-        'output_transform': dict(func=tflib.convert_images_to_uint8, nchw_to_nhwc=True),
-        'randomize_noise': False
-    }
+# def generate_latent_images_fft(zs, truncation_psi, outdir, save_npy,prefix,vidname,framerate):
+#     Gs_kwargs = {
+#         'output_transform': dict(func=tflib.convert_images_to_uint8, nchw_to_nhwc=True),
+#         'randomize_noise': False
+#     }
     
-    if not isinstance(truncation_psi, list):
-        truncation_psi = [truncation_psi] * len(zs)
-    
-    for z_idx, z in enumerate(zs):
-        if isinstance(z,list):
-          z = np.array(z).reshape(1,512)
-        elif isinstance(z,np.ndarray):
-          z.reshape(1,512)
-        print('Generating image for step %d/%d ...' % (z_idx, len(zs)))
-        Gs_kwargs['truncation_psi'] = truncation_psi[z_idx]
-        noise_rnd = np.random.RandomState(1) # fix noise
-        tflib.set_vars({var: noise_rnd.randn(*var.shape.as_list()) for var in noise_vars}) # [height, width]
-        images = Gs.run(z, None, **Gs_kwargs) # [minibatch, height, width, channel]
-        PIL.Image.fromarray(images[0], 'RGB').save(f'{outdir}/{prefix}{z_idx:05d}.png')
-        if save_npy:
-          np.save(dnnlib.make_run_dir_path('%s%05d.npy' % (prefix,z_idx)), z)
+#     audio_data = my_fft.Load_Track(mp3name)
 
-    cmd="ffmpeg -y -r {} -i {}/{}%05d.png -vcodec libx264 -pix_fmt yuv420p {}/walk-{}-{}fps.mp4".format(framerate,outdir,prefix,outdir,vidname,framerate)
-    subprocess.call(cmd, shell=True)
+#     start_idx = int(start_time_in_sec*88200)
+#     end_idx = start_idx + int(88200 * length_in_sec)
+#     audio_data = audio_data[start_idx:end_idx] # few sec
+
+#     full_fft = my_fft.FFT_Full_Transform_All_Band(audio_data=audio_data, fps=fft_fps)
+#     full_fft = np.asarray(full_fft)
+#     print(full_fft.shape)
+
+#     # LOWS -- 
+#     lows = full_fft[:,4] # @30 fps: 0=0-30, 1=30-60, 2=60-90
+#     mids = full_fft[:,13] # 400-600
+#     #mids = np.sum(mids,1)
+
+#     print('lows shape, mids shape:', lows.shape, mids.shape)
+
+
+
+#     # Decibel
+#     lows = lows/max(lows)
+#     lows = np.asarray(lows)   
+#     lows = 10*np.log10(lows) # DB
+
+#     mids = mids/max(mids)
+#     mids = np.asarray(mids)   
+#     mids = 10*np.log10(mids) # DB
+        
+
+#     if not isinstance(truncation_psi, list):
+#         truncation_psi = [truncation_psi] * len(zs)
+    
+#     for z_idx, z in enumerate(zs):
+#         if isinstance(z,list):
+#           z = np.array(z).reshape(1,512)
+#         elif isinstance(z,np.ndarray):
+#           z.reshape(1,512)
+#         print('Generating image for step %d/%d ...' % (z_idx, len(zs)))
+#         # print('FFT Data for step %d/%d: ' % )
+#         Gs_kwargs['truncation_psi'] = truncation_psi[z_idx]
+#         noise_rnd = np.random.RandomState(1) # fix noise
+#         tflib.set_vars({var: noise_rnd.randn(*var.shape.as_list()) for var in noise_vars}) # [height, width]
+#         images = Gs.run(z, None, **Gs_kwargs) # [minibatch, height, width, channel]
+#         PIL.Image.fromarray(images[0], 'RGB').save(f'{outdir}/{prefix}{z_idx:05d}.png')
+#         if save_npy:
+#           np.save(dnnlib.make_run_dir_path('%s%05d.npy' % (prefix,z_idx)), z)
+
+#     cmd="ffmpeg -y -r {} -i {}/{}%05d.png -vcodec libx264 -pix_fmt yuv420p {}/walk-{}-{}fps.mp4".format(framerate,outdir,prefix,outdir,vidname,framerate)
+#     subprocess.call(cmd, shell=True)
 
 def generate_images_in_w_space(ws, truncation_psi,outdir,save_npy,prefix,vidname,framerate):
 

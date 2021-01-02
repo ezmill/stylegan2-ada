@@ -21,7 +21,7 @@ import dnnlib.tflib as tflib
 
 #----------------------------------------------------------------------------
 
-def style_mixing_example(network_pkl, row_seeds, col_seeds, truncation_psi, col_styles, outdir, minibatch_size=4):
+def style_mixing_example(network_pkl, row_seeds, col_seeds, truncation_psi, col_styles, outdir, minibatch_size=4, dlatents_npz=None):
     tflib.init_tf()
     print('Loading networks from "%s"...' % network_pkl)
     with dnnlib.util.open_url(network_pkl) as fp:
@@ -34,11 +34,15 @@ def style_mixing_example(network_pkl, row_seeds, col_seeds, truncation_psi, col_
         'minibatch_size': minibatch_size
     }
 
+    if dlatents_npz is not None:
+        dlatents = np.load(dlatents_npz)['dlatents']
+    
     print('Generating W vectors...')
     all_seeds = list(set(row_seeds + col_seeds))
     all_z = np.stack([np.random.RandomState(seed).randn(*Gs.input_shape[1:]) for seed in all_seeds]) # [minibatch, component]
     all_w = Gs.components.mapping.run(all_z, None) # [minibatch, layer, component]
     all_w = w_avg + (all_w - w_avg) * truncation_psi # [minibatch, layer, component]
+    # all_w = all_w*0.5 + dlatents*0.5
     w_dict = {seed: w for seed, w in zip(all_seeds, list(all_w))} # [layer, component]
 
     print('Generating images...')
@@ -48,8 +52,14 @@ def style_mixing_example(network_pkl, row_seeds, col_seeds, truncation_psi, col_
     print('Generating style-mixed images...')
     for row_seed in row_seeds:
         for col_seed in col_seeds:
+            # w_dict[row_seed] = dlatents[0]
             w = w_dict[row_seed].copy()
+            # w = dlatents[0]
+            # print(w.shape, dlatents.shape)
+            # print("w", w)
+            # w[col_styles] = w_dict[col_seed][col_styles]
             w[col_styles] = w_dict[col_seed][col_styles]
+            # print(w.shape, dlatents.shape, w[col_styles].shape)
             image = Gs.components.synthesis.run(w[np.newaxis], **Gs_syn_kwargs)[0]
             image_dict[(row_seed, col_seed)] = image
 
@@ -103,6 +113,7 @@ def main():
     )
 
     parser.add_argument('--network', help='Network pickle filename', dest='network_pkl', required=True)
+    parser.add_argument('--dlatents', help='', dest='dlatents_npz', required=True)
     parser.add_argument('--rows', dest='row_seeds', type=_parse_num_range, help='Random seeds to use for image rows', required=True)
     parser.add_argument('--cols', dest='col_seeds', type=_parse_num_range, help='Random seeds to use for image columns', required=True)
     parser.add_argument('--styles', dest='col_styles', type=_parse_num_range, help='Style layer range (default: %(default)s)', default='0-6')

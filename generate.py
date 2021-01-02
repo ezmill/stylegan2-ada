@@ -67,6 +67,11 @@ def generate_images(network_pkl, seeds, truncation_psi, outdir, class_idx=None, 
         _G, _D, Gs = pickle.load(fp)
 
     os.makedirs(outdir, exist_ok=True)
+    Gs_kwargs = {
+        'output_transform': dict(func=tflib.convert_images_to_uint8, nchw_to_nhwc=True),
+        'randomize_noise': False
+    }
+    
 
     # Render images for a given dlatent vector.
     if dlatents_npz is not None:
@@ -78,7 +83,48 @@ def generate_images(network_pkl, seeds, truncation_psi, outdir, class_idx=None, 
             print(f'''Mismatch of loaded dlatents and network! dlatents was created with network of size: {actual_size}\n
                    {network_pkl} is of size {Gs.output_shape[-1]}''')
             sys.exit(1)
-        imgs = Gs.components.synthesis.run(dlatents, output_transform=dict(func=tflib.convert_images_to_uint8, nchw_to_nhwc=True))
+
+        seeds = list(range(0,10))
+        # rnd = np.random.RandomState(120938)
+        # z = rnd.randn(1, *Gs.input_shape[1:]) # [minibatch, component]
+
+        w_avg = Gs.get_var('dlatent_avg')
+
+        all_z = np.stack([np.random.RandomState(seed).randn(*Gs.input_shape[1:]) for seed in seeds]) # [minibatch, component]
+
+        all_w = Gs.components.mapping.run(all_z, None) # [minibatch, layer, component]
+        all_w = w_avg + (all_w - w_avg) * 0.1 # [minibatch, layer, component]
+        all_w = all_w*0.5 + dlatents*0.5
+        w_dict = {seed: w for seed, w in zip(seeds, list(all_w))} # [layer, component]
+        # np.tile(z, (18,0))
+        # z = np.broadcast_to(z, (1,18,512))
+        # print(z.shape)
+        # print(dlatents)
+        # z = rnd.randn(1, 512) # [minibatch, component]
+        # dlatents = np.broadcast_to(dlatents, (1,512))
+        # a = [dlatents[0][0]]
+        # new_latents = np.asarray(a)
+        # print(new_latents)
+        # new_latents = np.add(dlatents, z)
+        # imgs = Gs.components.synthesis.run(new_latents, output_transform=dict(func=tflib.convert_images_to_uint8, nchw_to_nhwc=True))
+
+        # print(Gs)
+        # print(w_avg)
+        # all_z = Gs.components.mapping.run(z, None)
+        # all_w = w_avg + (all_z - w_avg) * 1.0 # [minibatch, layer, component]
+
+        # np.swapaxes(dlatents, 1,2)
+        # np.delete(dlatents,2,0)
+        # print(*Gs.input_shape[1:])
+        # imgs = Gs.components.synthesis.run(all_w, output_transform=dict(func=tflib.convert_images_to_uint8, nchw_to_nhwc=True))
+        # imgs = Gs.run(new_latents, None, **Gs_kwargs) # [minibatch, height, width, channel]
+        # imgs = Gs.run(z, output_transform=dict(func=tflib.convert_images_to_uint8, nchw_to_nhwc=True))
+
+
+        print('Generating images...')
+        imgs = Gs.components.synthesis.run(all_w, **Gs_kwargs) # [minibatch, height, width, channel]
+        image_dict = {(seed, seed): image for seed, image in zip(seeds, list(imgs))}
+
         for i, img in enumerate(imgs):
             fname = f'{outdir}/dlatent{i:02d}.png'
             print (f'Saved {fname}')
@@ -658,6 +704,7 @@ def main():
 
     parser_generate_images = subparsers.add_parser('generate-images', help='Generate images')
     parser_generate_images.add_argument('--network', help='Network pickle filename', dest='network_pkl', required=True)
+    parser_generate_images.add_argument('--dlatents', help='', dest='dlatents_npz', required=False)
     parser_generate_images.add_argument('--seeds', type=_parse_num_range, help='List of random seeds', dest='seeds', required=True)
     parser_generate_images.add_argument('--truncation-psi', type=float, help='Truncation psi (default: %(default)s)', dest='truncation_psi', default=0.5)
     parser_generate_images.add_argument('--class', dest='class_idx', type=int, help='Class label (default: unconditional)')
